@@ -1,12 +1,16 @@
-trait Sequence {
-    fn from_char(c: char) -> Result<Self, char> where Self: Sized;
+pub trait Sequence: Into<u8> + TryFrom<u8, Error = u8>
+where
+    Self: Sized + Copy,
+{
+    fn from_char(c: char) -> Result<Self, char>;
+    fn bit_width() -> usize;
 }
 
 macro_rules! define_sequence_type {
-    ($name:ident { $($variant:ident : $( $char:literal ),+ => $value:expr ),* }) => {
+    ($name:ident[$width:expr] { $($variant:ident : $( $char:literal ),+ => $value:expr ),* }) => {
         #[derive(Debug, Clone, Copy, PartialEq)]
-        enum $name {
-            $($variant),*
+        pub(crate) enum $name {
+            $( $variant, )*
         }
 
         impl Sequence for $name {
@@ -16,7 +20,12 @@ macro_rules! define_sequence_type {
                     _ => Err(c),
                 }
             }
+
+            fn bit_width() -> usize {
+                $width
+            }
         }
+
 
         impl From<$name> for u8 {
             fn from(value: $name) -> Self {
@@ -26,17 +35,8 @@ macro_rules! define_sequence_type {
             }
         }
 
-        impl std::fmt::Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                match self {
-                    $( Self::$variant => write!(f, stringify!($variant)), )*
-                }
-            }
-        }
-
         impl std::convert::TryFrom<u8> for $name {
             type Error = u8;
-
             fn try_from(value: u8) -> Result<Self, Self::Error> {
                 match value {
                     $( $value => Ok(Self::$variant), )*
@@ -47,14 +47,14 @@ macro_rules! define_sequence_type {
     };
 }
 
-define_sequence_type!(NucleicAcid {
+define_sequence_type!(NucleicAcid[2] {
     Adenine : 'a' => 0b00,
     Cytosine : 'c' => 0b01,
     Guanine : 'g', '^' => 0b10,
     ThymineUracil : 't', 'u' => 0b11
 });
 
-define_sequence_type!(NucleicAcidExpanded {
+define_sequence_type!(NucleicAcidExpanded[4] {
     Adenine : 'a' => 0b0001,
     Cytosine : 'c' => 0b0010,
     Guanine : 'g' => 0b0100,
@@ -73,7 +73,7 @@ define_sequence_type!(NucleicAcidExpanded {
     Gap : '-' => 0b0000
 });
 
-define_sequence_type!(AminoAcid {
+define_sequence_type!(AminoAcid[5] {
     Alanine : 'a' => 0b00000,
     DorN : 'b' => 0b00001,
     Cysteine : 'c' => 0b00010,
